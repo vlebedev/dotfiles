@@ -1,0 +1,542 @@
+;; User details
+(setq user-full-name "Vladimir Lebedev")
+(setq user-mail-address "wal@fastmail.fm")
+
+;; load-path
+(add-to-list 'load-path "~/.emacs.d/lisp/")
+
+;; PATH
+(setenv "PATH" (concat "/usr/local/bin:/opt/local/bin:/usr/bin:/bin" (getenv "PATH")))
+(require 'cl)
+
+;; Packages
+(load "package")
+(package-initialize)
+(add-to-list 'package-archives
+             '("marmalade" . "http://marmalade-repo.org/packages/"))
+(add-to-list 'package-archives
+             '("melpa" . "http://melpa.milkbox.net/packages/") t)
+
+(setq package-archive-enable-alist '(("melpa" deft magit)))
+
+(defvar wal/packages '(ac-slime
+		       auto-complete
+		       autopair
+		       clojure-mode
+		       coffee-mode
+		       csharp-mode
+		       deft
+		       erlang
+		       feature-mode
+		       flycheck
+		       gist
+		       go-mode
+		       graphviz-dot-mode
+		       haml-mode
+		       haskell-mode
+		       htmlize
+		       lua-mode
+		       magit
+		       markdown-mode
+		       marmalade
+		       nodejs-repl
+		       o-blog
+		       org
+		       paredit
+		       php-mode
+		       puppet-mode
+		       restclient
+		       rvm
+		       scala-mode
+		       smex
+		       sml-mode
+		       solarized-theme
+		       web-mode
+		       writegood-mode
+		       yaml-mode)
+  "Default packages")
+
+(defun wal/packages-installed-p ()
+  (loop for pkg in wal/packages
+        when (not (package-installed-p pkg)) do (return nil)
+        finally (return t)))
+
+(unless (wal/packages-installed-p)
+  (message "%s" "Refreshing package database...")
+  (package-refresh-contents)
+  (dolist (pkg wal/packages)
+    (when (not (package-installed-p pkg))
+      (package-install pkg))))
+
+;; Vendor dir
+(defvar wal/vendor-dir (expand-file-name "vendor" user-emacs-directory))
+(add-to-list 'load-path wal/vendor-dir)
+
+(dolist (project (directory-files wal/vendor-dir t "\\w+"))
+  (when (file-directory-p project)
+    (add-to-list 'load-path project)))
+
+;; Start screen
+(setq inhibit-splash-screen t
+      initial-scratch-message nil
+      initial-major-mode 'org-mode)
+
+(scroll-bar-mode -1)
+(tool-bar-mode -1)
+(menu-bar-mode -1)
+
+;; Marking text
+(delete-selection-mode t)
+(transient-mark-mode t)
+(setq x-select-enable-clipboard t)
+
+;; Display settings
+(when window-system
+  (setq frame-title-format '(buffer-file-name "%f" ("%b")))
+  (set-face-attribute 'default nil
+                      :family "Inconsolata"
+                      :height 140
+                      :weight 'normal
+                      :width 'normal)
+
+  (when (functionp 'set-fontset-font)
+    (set-fontset-font "fontset-default"
+                      'unicode
+                      (font-spec :family "DejaVu Sans Mono"
+                                 :width 'normal
+                                 :size 12.4
+                                 :weight 'normal))))
+
+(setq-default indicate-empty-lines t)
+(when (not indicate-empty-lines)
+  (toggle-indicate-empty-lines))
+
+;; Indentation
+(setq tab-width 2
+      indent-tabs-mode nil)
+
+;; Backup files
+(setq make-backup-files nil)
+
+;; Server
+(require 'server)
+(server-start)
+
+;; Yes and no
+(defalias 'yes-or-no-p 'y-or-n-p)
+
+;; Global key bindings
+(global-set-key (kbd "RET") 'newline-and-indent)
+(global-set-key (kbd "C-;") 'comment-or-uncomment-region)
+(global-set-key (kbd "M-/") 'hippie-expand)
+(global-set-key (kbd "C-+") 'text-scale-increase)
+(global-set-key (kbd "C--") 'text-scale-decrease)
+(global-set-key (kbd "C-c C-k") 'compile)
+(global-set-key (kbd "C-x g") 'magit-status)
+
+;; Misc
+(setq echo-keystrokes 0.1
+      use-dialog-box nil
+      visible-bell t)
+(show-paren-mode t)
+
+;; Org
+
+;; Settings
+(setq org-log-done t
+      org-todo-keywords '((sequence "TODO" "INPROGRESS" "DONE"))
+      org-todo-keyword-faces '(("INPROGRESS" . (:foreground "blue" :weight bold))))
+(add-hook 'org-mode-hook
+          (lambda ()
+            (flyspell-mode)))
+(add-hook 'org-mode-hook
+          (lambda ()
+            (writegood-mode)))
+
+;; org-agenda
+(global-set-key (kbd "C-c a") 'org-agenda)
+(setq org-agenda-show-log t
+      org-agenda-todo-ignore-scheduled t
+      org-agenda-todo-ignore-deadlines t)
+(setq org-agenda-files (list "~/Dropbox/org/personal.org"
+                             "~/Dropbox/org/groupon.org"))
+
+;; org-habit
+(require 'org)
+(require 'org-install)
+(require 'org-habit)
+(add-to-list 'org-modules "org-habit")
+(setq org-habit-preceding-days 7
+      org-habit-following-days 1
+      org-habit-graph-column 80
+      org-habit-show-habits-only-for-today t
+      org-habit-show-all-today t)
+
+;; org-babel
+(require 'ob)
+
+(org-babel-do-load-languages
+ 'org-babel-load-languages
+ '((sh . t)
+   (ditaa . t)
+   (plantuml . t)
+   (dot . t)
+   (ruby . t)
+   (js . t)
+   (C . t)))
+
+(add-to-list 'org-src-lang-modes (quote ("dot". graphviz-dot)))
+(add-to-list 'org-src-lang-modes (quote ("plantuml" . fundamental)))
+(add-to-list 'org-babel-tangle-lang-exts '("clojure" . "clj"))
+
+(defvar org-babel-default-header-args:clojure
+  '((:results . "silent") (:tangle . "yes")))
+
+(defun org-babel-execute:clojure (body params)
+  (lisp-eval-string body)
+  "Done!")
+
+(provide 'ob-clojure)
+
+(setq org-src-fontify-natively t
+      org-confirm-babel-evaluate nil)
+
+(add-hook 'org-babel-after-execute-hook (lambda ()
+                                          (condition-case nil
+                                              (org-display-inline-images)
+                                            (error nil)))
+          'append)
+
+;; org-abbrev
+(add-hook 'org-mode-hook (lambda () (abbrev-mode 1)))
+
+(define-skeleton skel-org-block-elisp
+  "Insert an emacs-lisp block"
+  ""
+  "#+begin_src emacs-lisp\n"
+  _ - \n
+  "#+end_src\n")
+
+(define-abbrev org-mode-abbrev-table "elsrc" "" 'skel-org-block-elisp)
+
+(define-skeleton skel-org-block-js
+  "Insert a JavaScript block"
+  ""
+  "#+begin_src js\n"
+  _ - \n
+  "#+end_src\n")
+
+(define-abbrev org-mode-abbrev-table "jssrc" "" 'skel-org-block-js)
+
+(define-skeleton skel-header-block
+  "Creates my default header"
+  ""
+  "#+TITLE: " str "\n"
+  "#+AUTHOR: Aaron Bedra\n"
+  "#+EMAIL: aaron@aaronbedra.com\n"
+  "#+OPTIONS: toc:3 num:nil\n"
+  "#+STYLE: <link rel=\"stylesheet\" type=\"text/css\" href=\"http://thomasf.github.io/solarized-css/solarized-light.min.css\" />\n")
+
+(define-abbrev org-mode-abbrev-table "sheader" "" 'skel-header-block)
+
+(define-skeleton skel-org-html-file-name
+  "Insert an HTML snippet to reference the file by name"
+  ""
+  "#+HTML: <strong><i>"str"</i></strong>")
+
+(define-abbrev org-mode-abbrev-table "fname" "" 'skel-org-html-file-name)
+
+(define-skeleton skel-ngx-config
+  "Template for NGINX module config file"
+  ""
+  "ngx_addon_name=ngx_http_" str  "_module\n"
+  "HTTP_MODULES=\"$HTTP_MODULES ngx_http_" str "_module\"\n"
+  "NGX_ADDON_SRCS=\"$NGX_ADDON_SRCS $ngx_addon_dir/ngx_http_" str "_module.c\"")
+
+(define-abbrev fundamental-mode-abbrev-table "ngxcnf" "" 'skel-ngx-config)
+
+(define-skeleton skel-ngx-module
+  "Template for NGINX modules"
+  ""
+  "#include <nginx.h>\n"
+  "#include <ngx_config.h>\n"
+  "#include <ngx_core.h>\n"
+  "#include <ngx_http.h>\n\n"
+
+  "ngx_module_t ngx_http_" str "_module;\n\n"
+
+  "static ngx_int_t\n"
+  "ngx_http_" str "_handler(ngx_http_request_t *r)\n"
+  "{\n"
+  >"if (r->main->internal) {\n"
+  >"return NGX_DECLINED;\n"
+  "}" > \n
+  \n
+  >"ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, \"My new module\");\n\n"
+  > _ \n
+  >"return NGX_OK;\n"
+  "}" > "\n\n"
+
+  "static ngx_int_t\n"
+  "ngx_http_"str"_init(ngx_conf_t *cf)\n"
+  "{\n"
+  >"ngx_http_handler_pt *h;\n"
+  >"ngx_http_core_main_conf_t *cmcf;\n\n"
+
+  >"cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);\n"
+  >"h = ngx_array_push(&cmcf->phases[NGX_HTTP_ACCESS_PHASE].handlers);\n\n"
+
+  >"if (h == NULL) {\n"
+  >"return NGX_ERROR;\n"
+  "}" > \n
+  \n
+  >"*h = ngx_http_"str"_handler;\n\n"
+
+  >"return NGX_OK;\n"
+  "}" > \n
+  \n
+  "static ngx_http_module_t ngx_http_"str"_module_ctx = {\n"
+  >"NULL,                 /* preconfiguration */\n"
+  >"ngx_http_"str"_init,  /* postconfiguration */\n"
+  >"NULL,                 /* create main configuration */\n"
+  >"NULL,                 /* init main configuration */\n"
+  >"NULL,                 /* create server configuration */\n"
+  >"NULL,                 /* merge server configuration */\n"
+  >"NULL,                 /* create location configuration */\n"
+  >"NULL                  /* merge location configuration */\n"
+  "};" > \n
+  \n
+
+  "ngx_module_t ngx_http_"str"_module = {\n"
+  >"NGX_MODULE_V1,\n"
+  >"&ngx_http_"str"_module_ctx,  /* module context */\n"
+  >"NULL,                        /* module directives */\n"
+  >"NGX_HTTP_MODULE,             /* module type */\n"
+  >"NULL,                        /* init master */\n"
+  >"NULL,                        /* init module */\n"
+  >"NULL,                        /* init process */\n"
+  >"NULL,                        /* init thread */\n"
+  >"NULL,                        /* exit thread */\n"
+  >"NULL,                        /* exit process */\n"
+  >"NULL,                        /* exit master */\n"
+  >"NGX_MODULE_V1_PADDING\n"
+  "};" >)
+
+(require 'cc-mode)
+(define-abbrev c-mode-abbrev-table "ngxmod" "" 'skel-ngx-module)
+
+(define-skeleton skel-ngx-append-header
+  "Template for header appending function for NGINX modules"
+  ""
+  "static void append_header(ngx_http_request_t *r)\n"
+  "{\n"
+  > "ngx_table_elt_t *h;\n"
+  > "h = ngx_list_push(&r->headers_out.headers);\n"
+  > "h->hash = 1;\n"
+  > "ngx_str_set(&h->key, \"X-NGINX-Hello\");\n"
+  > "ngx_str_set(&h->value, \"Hello NGINX!\");\n"
+  "}\n")
+
+(define-abbrev c-mode-abbrev-table "ngxhdr" "" 'skel-ngx-append-header)
+
+;; Utilities
+
+;; ditaa
+(setq org-ditaa-jar-path "~/.emacs.d/vendor/ditaa0_9.jar")
+
+;; plantuml
+(setq org-plantuml-jar-path "~/.emacs.d/vendor/plantuml.jar")
+
+;; deft
+(setq deft-directory "~/Dropbox/deft")
+(setq deft-use-filename-as-title t)
+(setq deft-extension "org")
+(setq deft-text-mode 'org-mode)
+
+;; smex
+(setq smex-save-file (expand-file-name ".smex-items" user-emacs-directory))
+(smex-initialize)
+(global-set-key (kbd "M-x") 'smex)
+(global-set-key (kbd "M-X") 'smex-major-mode-commands)
+
+;; ido
+(ido-mode t)
+(setq ido-enable-flex-matching t
+      ido-use-virtual-buffers t)
+
+;; Column number
+(setq column-number-mode t)
+
+;; Temp files
+(setq backup-directory-alist `((".*" . ,temporary-file-directory)))
+(setq auto-save-file-name-transforms `((".*" ,temporary-file-directory t)))
+
+;; autopair-mode
+(require 'autopair)
+
+;; power lisp
+(setq lisp-modes '(lisp-mode
+                   emacs-lisp-mode
+                   common-lisp-mode
+                   scheme-mode
+                   clojure-mode))
+
+(defvar lisp-power-map (make-keymap))
+(define-minor-mode lisp-power-mode "Fix keybindings; add power."
+  :lighter " (power)"
+  :keymap lisp-power-map
+  (paredit-mode t))
+(define-key lisp-power-map [delete] 'paredit-forward-delete)
+(define-key lisp-power-map [backspace] 'paredit-backward-delete)
+
+(defun wal/engage-lisp-power ()
+  (lisp-power-mode t))
+
+(dolist (mode lisp-modes)
+  (add-hook (intern (format "%s-hook" mode))
+            #'wal/engage-lisp-power))
+
+(setq inferior-lisp-program "clisp")
+(setq scheme-program-name "racket")
+
+;; auto-complete
+(require 'auto-complete-config)
+(ac-config-default)
+
+;; idents
+(defun untabify-buffer ()
+  (interactive)
+  (untabify (point-min) (point-max)))
+
+(defun indent-buffer ()
+  (interactive)
+  (indent-region (point-min) (point-max)))
+
+(defun cleanup-buffer ()
+  "Perform a bunch of operations on the whitespace content of a buffer."
+  (interactive)
+  (indent-buffer)
+  (untabify-buffer)
+  (delete-trailing-whitespace))
+
+(defun cleanup-region (beg end)
+  "Remove tmux artifacts from region."
+  (interactive "r")
+  (dolist (re '("\\\\│\·*\n" "\W*│\·*"))
+    (replace-regexp re "" nil beg end)))
+
+(global-set-key (kbd "C-x M-t") 'cleanup-region)
+(global-set-key (kbd "C-c n") 'cleanup-buffer)
+
+(setq-default show-trailing-whitespace t)
+
+;; flyspell
+(setq flyspell-issue-welcome-flag nil)
+(if (eq system-type 'darwin)
+    (setq-default ispell-program-name "/usr/local/bin/aspell")
+  (setq-default ispell-program-name "/usr/bin/aspell"))
+(setq-default ispell-list-command "list")
+
+;; markdown
+(add-to-list 'auto-mode-alist '("\\.md$" . markdown-mode))
+(add-to-list 'auto-mode-alist '("\\.mdown$" . markdown-mode))
+(add-hook 'markdown-mode-hook
+          (lambda ()
+            (visual-line-mode t)
+            (writegood-mode t)
+            (flyspell-mode t)))
+(setq markdown-command "pandoc --smart -f markdown -t html")
+(setq markdown-css-path (expand-file-name "markdown.css" wal/vendor-dir))
+
+;; sh
+(add-to-list 'auto-mode-alist '("\\.zsh$" . shell-script-mode))
+
+;; conf
+(add-to-list 'auto-mode-alist '("\\.gitconfig$" . conf-mode))
+
+;; yaml
+(add-to-list 'auto-mode-alist '("\\.yml$" . yaml-mode))
+(add-to-list 'auto-mode-alist '("\\.yaml$" . yaml-mode))
+
+;; coffee-mode
+(defun coffee-custom ()
+  "coffee-mode-hook"
+  (make-local-variable 'tab-width)
+  (set 'tab-width 2))
+
+(add-hook 'coffee-mode-hook 'coffee-custom)
+
+;; js-mode
+(defun js-custom ()
+  "js-mode-hook"
+  (setq js-indent-level 2))
+
+(add-hook 'js-mode-hook 'js-custom)
+
+;; Themes
+(if window-system
+    (load-theme 'solarized-dark t)
+  (load-theme 'wombat t))
+
+;; Buffer management
+(global-set-key (kbd "M-]") 'next-buffer)
+(global-set-key (kbd "M-[") 'previous-buffer)
+
+(defun kill-current-buffer ()
+  "Kills the current buffer"
+  (interactive)
+  (kill-buffer (buffer-name)))
+
+(global-set-key (kbd "C-x C-k") 'kill-current-buffer)
+
+(defun nuke-all-buffers ()
+  "Kill all buffers, leaving *scratch* only"
+  (interactive)
+  (mapcar (lambda (x) (kill-buffer x))
+          (buffer-list))
+  (delete-other-windows))
+
+(global-set-key (kbd "C-x C-S-k") 'nuke-all-buffers)
+(global-set-key (kbd "C-c r") 'revert-buffer)
+
+;; some LaTeX-specific export settings
+;; load the latex extensions
+; (Require 'org-latex) # deprecated!
+
+(require 'ox-html)
+(require 'ox-latex)
+(require 'ox-ascii)
+
+; kick out all packages from org-mode's default list
+; gives maximum of flexibility
+;;(setq org-latex-packages-alist nil)
+;;(setq org-latex-default-packages-alist nil)
+
+;; now let's add a few custom class export templates
+(add-to-list 'org-latex-classes
+          '("koma-article"
+
+             "\\documentclass{scrartcl}"
+             ("\\section{%s}" . "\\section*{%s}")
+             ("\\subsection{%s}" . "\\subsection*{%s}")
+             ("\\subsubsection{%s}" . "\\subsubsection*{%s}")
+             ("\\paragraph{%s}" . "\\paragraph*{%s}")
+             ("\\subparagraph{%s}" . "\\subparagraph*{%s}")))
+
+(add-to-list 'org-latex-classes  ;; org-export-latex-classes is deprecated
+
+'("scrlttr"
+     "\\documentclass[11pt]{scrlttr2}\n
+      \\usepackage[utf8]{inputenc}\n
+      \\usepackage[T1]{fontenc}\n
+      \\usepackage{xcolor}"
+
+     ("\\section{%s}" . "\\section*{%s}")
+     ("\\subsection{%s}" . "\\subsection*{%s}")
+     ("\\subsubsection{%s}" . "\\subsubsection*{%s}")
+     ("\\paragraph{%s}" . "\\paragraph*{%s}")
+     ("\\subparagraph{%s}" . "\\subparagraph*{%s}")))
+
+;; Lua
+(setq lua-indent-level 2)
+(require 'lua2-mode)
